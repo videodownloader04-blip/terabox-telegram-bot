@@ -1,65 +1,51 @@
 import os
-import requests
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import glob
+import subprocess
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
-# Multi-API Engine for 100% Success Rate
-API_LIST = [
-    "https://terabox-api-ebon-xi.vercel.app/fetch?url=",
-    "https://terabox-dl.qt0.workers.dev/?url=",
-    "https://terabox.hnn.workers.dev/?url=",
-    "https://api.terabox.app/api?url="
-]
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚡ **TeraBox Downloader Active!**\n\nഏത് TeraBox / Terasharefile / 1024tera ലിങ്കും അയക്കൂ, ഹൈ-സ്പീഡ് ലിങ്ക് എടുത്ത് തരാം.")
+    await update.message.reply_text("⚡ **TeraBox Direct Video Uploader!**\n\nTeraBox ലിങ്ക് അയക്കൂ, വീഡിയോ ഫയലായി ടെലഗ്രാമിൽ അയച്ചു തരാം.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    keywords = ["terabox", "1024tera", "teraboxapp", "terasharefile", "neobox", "freeterabox", "mirrobox", "momoleech"]
+    keywords = ["terabox", "1024tera", "teraboxapp", "terasharefile", "neobox", "freeterabox", "mirrobox"]
     
     if any(k in url for k in keywords):
-        msg = await update.message.reply_text("🔎 **ഡൗൺലോഡ് ലിങ്ക് തിരയുന്നു...**")
+        msg = await update.message.reply_text("📥 **വീഡിയോ ഡൗൺലോഡ് ചെയ്യുന്നു... (ദയവായി കാത്തിരിക്കൂ)**")
         
-        dl_link = None
-        file_name = "TeraBox_Video.mp4"
+        output_template = "video_%(id)s.%(ext)s"
         
-        # ഓരോ API ആയി മാറി മാറി ട്രൈ ചെയ്യുന്നു
-        for api_url in API_LIST:
-            try:
-                res = requests.get(f"{api_url}{url}", timeout=8).json()
-                
-                # Vercel custom & worker check
-                if res.get("status") == "success" and res.get("download_url"):
-                    dl_link = res.get("download_url")
-                    file_name = res.get("file_name", file_name)
-                    break
-                elif res.get("downloadLink"):
-                    dl_link = res.get("downloadLink")
-                    file_name = res.get("fileName", file_name)
-                    break
-                elif res.get("url"):
-                    dl_link = res.get("url")
-                    break
-            except Exception:
-                continue
-
-        if dl_link:
-            keyboard = [
-                [InlineKeyboardButton("🚀 Direct Fast Download / Stream", url=dl_link)]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+        try:
+            # yt-dlp ഉപയോഗിച്ച് സെർവറിലേക്ക് ഡൗൺലോഡ് ചെയ്യുന്നു
+            cmd = f'yt-dlp -o "{output_template}" "{url}"'
+            subprocess.run(cmd, shell=True, check=True)
             
-            await msg.edit_text(
-                f"✅ **വീഡിയോ ലിങ്ക് തയ്യാറാണ്!**\n\n📁 **ഫയൽ:** {file_name}\n\nതാഴെയുള്ള ബട്ടൺ ക്ലിക്ക് ചെയ്ത് പ്ലേ ചെയ്യുകയോ വേഗത്തിൽ ഡൗൺലോഡ് ചെയ്യുകയോ ചെയ്യാം 👇",
-                reply_markup=reply_markup
-            )
-        else:
-            await msg.edit_text("❌ ലിങ്ക് പ്രോസസ്സ് ചെയ്യാൻ സാധിച്ചില്ല. ഈ ലിങ്ക് Private ആയതോ അല്ലെങ്കിൽ സപ്പോർട്ട് ചെയ്യാത്തതോ ആകാം. മറ്റൊരു ലിങ്ക് അയച്ച് നോക്കൂ.")
+            # ഡൗൺലോഡ് ആയ വീഡിയോ ഫയൽ കണ്ടെത്തുന്നു
+            files = glob.glob("video_*")
+            if files:
+                video_file = files[0]
+                await msg.edit_text("⬆️ **ടെലഗ്രാമിലേക്ക് അപ്‌ലോഡ് ചെയ്യുന്നു...**")
+                
+                # ടെലഗ്രാം ചാറ്റിലേക്ക് നേരിട്ട് അയക്കുന്നു
+                with open(video_file, 'rb') as video:
+                    await update.message.reply_video(video=video, caption="✅ **ഇതാ നിങ്ങളുടെ വീഡിയോ!**")
+                
+                # ഫയൽ സെർവറിൽ നിന്ന് ഡിലീറ്റ് ചെയ്യുന്നു (Clean up)
+                os.remove(video_file)
+                await msg.delete()
+            else:
+                await msg.edit_text("❌ വീഡിയോ ഡൗൺലോഡ് ചെയ്യാൻ സാധിച്ചില്ല. TeraBox ലിങ്ക് പ്രൈവറ്റ് ആണോ എന്ന് പരിശോധിക്കുക.")
+        except Exception as e:
+            await msg.edit_text("❌ ഡൗൺലോഡ് എറർ! ഫയൽ സൈസ് പെർമിറ്റഡ് ലിമിറ്റിൽ കൂടുതൽ ആവാം അല്ലെങ്കിൽ TeraBox ഡൗൺലോഡ് ബ്ലോക്ക് ചെയ്തതാവാം.")
+            # ക്ലീനപ്പ്
+            for f in glob.glob("video_*"):
+                try: os.remove(f)
+                except: pass
     else:
-        await update.message.reply_text("ദയവായി ഒരു കൃത്യമായ TeraBox ലിങ്ക് അയക്കുക.")
+        await update.message.reply_text("ദയവായി ഒരു TeraBox ലിങ്ക് അയക്കുക.")
 
 if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
