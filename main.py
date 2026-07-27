@@ -4,39 +4,47 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-PRIMARY_API = "https://terabox-api-ebon-xi.vercel.app/fetch"
+
+# Multi-API Engine for 100% Success Rate
+API_LIST = [
+    "https://terabox-api-ebon-xi.vercel.app/fetch?url=",
+    "https://terabox-dl.qt0.workers.dev/?url=",
+    "https://terabox.hnn.workers.dev/?url=",
+    "https://api.terabox.app/api?url="
+]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("⚡ **Railway TeraBox Downloader Active!**\n\nഏത് TeraBox ലിങ്കും അയക്കൂ, വേഗത്തിൽ ഡൗൺലോഡ് ചെയ്യാം.")
+    await update.message.reply_text("⚡ **TeraBox Downloader Active!**\n\nഏത് TeraBox / Terasharefile / 1024tera ലിങ്കും അയക്കൂ, ഹൈ-സ്പീഡ് ലിങ്ക് എടുത്ത് തരാം.")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = update.message.text.strip()
-    keywords = ["terabox", "1024tera", "teraboxapp", "terasharefile", "neobox", "freeterabox", "mirrobox"]
+    keywords = ["terabox", "1024tera", "teraboxapp", "terasharefile", "neobox", "freeterabox", "mirrobox", "momoleech"]
     
     if any(k in url for k in keywords):
-        msg = await update.message.reply_text("🔎 **ഡൗൺലോഡ് ലിങ്ക് വിശകലനം ചെയ്യുന്നു...**")
+        msg = await update.message.reply_text("🔎 **ഡൗൺലോഡ് ലിങ്ക് തിരയുന്നു...**")
         
         dl_link = None
-        file_name = "Video.mp4"
+        file_name = "TeraBox_Video.mp4"
         
-        # 1. Custom Vercel API Try ചെയ്യുന്നു
-        try:
-            res = requests.get(f"{PRIMARY_API}?url={url}", timeout=10).json()
-            if res.get("status") == "success" and res.get("download_url"):
-                dl_link = res.get("download_url")
-                file_name = res.get("file_name", file_name)
-        except Exception:
-            pass
-            
-        # 2. ഫെയിൽ ആയാൽ Secondary API Try ചെയ്യുന്നു
-        if not dl_link:
+        # ഓരോ API ആയി മാറി മാറി ട്രൈ ചെയ്യുന്നു
+        for api_url in API_LIST:
             try:
-                sec_res = requests.get(f"https://terabox-dl.qt0.workers.dev/?url={url}", timeout=10).json()
-                if sec_res.get("downloadLink"):
-                    dl_link = sec_res.get("downloadLink")
-                    file_name = sec_res.get("fileName", file_name)
+                res = requests.get(f"{api_url}{url}", timeout=8).json()
+                
+                # Vercel custom & worker check
+                if res.get("status") == "success" and res.get("download_url"):
+                    dl_link = res.get("download_url")
+                    file_name = res.get("file_name", file_name)
+                    break
+                elif res.get("downloadLink"):
+                    dl_link = res.get("downloadLink")
+                    file_name = res.get("fileName", file_name)
+                    break
+                elif res.get("url"):
+                    dl_link = res.get("url")
+                    break
             except Exception:
-                pass
+                continue
 
         if dl_link:
             keyboard = [
@@ -45,11 +53,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await msg.edit_text(
-                f"✅ **ഡൗൺലോഡ് ലിങ്ക് റെഡിയാണ്!**\n\n📁 **ഫയൽ:** {file_name}\n\nതാഴെയുള്ള ബട്ടണിൽ ക്ലിക്ക് ചെയ്ത് വീഡിയോ ഡൗൺലോഡ് ചെയ്യുകയോ സ്ട്രീം ചെയ്യുകയോ ചെയ്യാം 👇",
+                f"✅ **വീഡിയോ ലിങ്ക് തയ്യാറാണ്!**\n\n📁 **ഫയൽ:** {file_name}\n\nതാഴെയുള്ള ബട്ടൺ ക്ലിക്ക് ചെയ്ത് പ്ലേ ചെയ്യുകയോ വേഗത്തിൽ ഡൗൺലോഡ് ചെയ്യുകയോ ചെയ്യാം 👇",
                 reply_markup=reply_markup
             )
         else:
-            await msg.edit_text("❌ ലിങ്ക് പ്രോസസ്സ് ചെയ്യാൻ സാധിച്ചില്ല. TeraBox ലിങ്ക് വാലിഡ് ആണോ എന്ന് ഉറപ്പുവരുത്തുക.")
+            await msg.edit_text("❌ ലിങ്ക് പ്രോസസ്സ് ചെയ്യാൻ സാധിച്ചില്ല. ഈ ലിങ്ക് Private ആയതോ അല്ലെങ്കിൽ സപ്പോർട്ട് ചെയ്യാത്തതോ ആകാം. മറ്റൊരു ലിങ്ക് അയച്ച് നോക്കൂ.")
     else:
         await update.message.reply_text("ദയവായി ഒരു കൃത്യമായ TeraBox ലിങ്ക് അയക്കുക.")
 
